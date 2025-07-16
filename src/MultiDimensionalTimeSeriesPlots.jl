@@ -106,27 +106,40 @@ function plot_network_trials!(ax, Z::Array{T,3}, θ::Vector{T},W::Observable{Mat
     ax,l
 end
 
-function plot_3d_snapshot(Z::Array{T,3}, θ::Vector{T};t::Observable{Int64}=Observable(1),show_trajectories=false) where T <: Real
+function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Observable(1),show_trajectories=false) where T <: Real
     d,nbins,ntrials = size(Z)
     # random projection matrix
     _W = diagm(fill(one(T), d))
     W = Observable(_W[1:3,1:d])
+    rt = Observable(1)
+    do_pause = Observable(true)
+    R = 0.01*randn(d,d)
+    R  = R - permutedims(R) + diagm(fill(one(T),d))
+    on(rt) do _rt
+        W[] = W[]*R
+    end
     # manually assign colors so that we can use them for the trajectories as well
-    acolors = resample_cmap(:phase, length(θ))
-    sidx = sortperm(θ)
+    k = 1
+    acolors = resample_cmap(:phase, size(θ,k))
+    sidx = sortperm(θ[:,k])
     vidx = invperm(sidx)
+    pcolors = Observable(acolors[vidx])
     points = lift(t,W) do _t, _W
         Point3f.(eachcol(_W*Z[:,_t, :]))
     end
     traj = lift(t,W) do _t, _W
         [_t >= i >= 1 ? Point3f(_W*Z[:, i, j]) : Point3f(NaN) for j in 1:size(Z,3) for i in (_t-5):_t+1]
     end
-    traj_color = [acolors[vidx[j]] for j in 1:length(θ) for i in 1:7] 
+    traj_color = lift(pcolors) do _pc
+         [_pc[j] for j in 1:size(θ,1) for i in 1:7] 
+    end
 
     # if show trajectories, include fading trajectories of the last 5 points
     fig = Figure()
     ax = Axis3(fig[1,1])
-    scatter!(ax, points, color=acolors[vidx])
+    cax = Colorbar(fig[1,2], limits=(minimum(θ), maximum(θ)), colormap=:phase)
+    cax.label = "θ1" 
+    scatter!(ax, points, color=pcolors)
     if show_trajectories
         lines!(ax, traj, color=traj_color)
     end
@@ -139,6 +152,14 @@ function plot_3d_snapshot(Z::Array{T,3}, θ::Vector{T};t::Observable{Int64}=Obse
             elseif event.key == Keyboard.r
                 q,r = qr(randn(d,d))
                 W[] = permutedims(q[:,1:3])
+            elseif event.key == Keyboard.p
+                do_pause[] = !do_pause[]
+            elseif event.key == Keyboard.c
+                k = mod(k,size(θ,2))+1
+                sidx = sortperm(θ[:,k])
+                vidx = invperm(sidx)
+                pcolors[] = acolors[vidx]
+                cax.label = "θ$k"
             end
         end
         autolimits!(ax)
@@ -155,6 +176,13 @@ function plot_3d_snapshot(Z::Array{T,3}, θ::Vector{T};t::Observable{Int64}=Obse
         if sl.value[] != _t
             set_close_to!(sl, _t)
         end
+    end
+    @async while true
+        if !do_pause[]
+            rt[] = rt[] + 1
+        end
+        sleep(0.1)
+        yield()
     end
     fig
 end
