@@ -43,26 +43,41 @@ end
 
 function plot_network_trials(Z::Array{T,3}, θ::Vector{T};kwargs...) where T <: Real
     # slightly hackish
+    d = size(Z,1)
     fig = Figure()
     if size(Z,1) == 1
         ax = Axis(fig[1,1])
     else
         ax = Axis3(fig[1,1], xgridvisible=true, ygridvisible=true, zgridvisible=true, viewmode=:stretch)
     end
-    plot_network_trials!(ax, Z, θ;kwargs...)
+    _W = diagm(fill(one(T), d))
+    W = Observable(_W[1:2,1:d])
+    on(events(fig).keyboardbutton) do event
+        if event.action == Keyboard.press || event.action == Keyboard.repeat
+            if event.key == Keyboard.r
+                q,r = qr(randn(d,d))
+                W[] = permutedims(q[:,1:2])
+            end
+        end
+    end
+    plot_network_trials!(ax, Z, θ, W;kwargs...)
     ax.xlabel = "Time"
     fig
 end
 
-function plot_network_trials!(ax, Z::Array{T,3}, θ::Vector{T};cidx::Observable{Int64}=Observable(1), trial_events::Vector{Int64}=Int64[]) where T <: Real
+function plot_network_trials!(ax, Z::Array{T,3}, θ::Vector{T};kwargs...) where T <: Real
+    d = size(Z,1)
+    # random projection
+    _W = diagm(fill(one(T), d))
+    W = Observable(_W[1:2,1:d])
+    plot_network_trials!(ax, Z, θ, W;kwargs...)
+end
+
+function plot_network_trials!(ax, Z::Array{T,3}, θ::Vector{T},W::Observable{Matrix{T}};trial_events::Vector{Int64}=Int64[]) where T <: Real
     _colors = resample_cmap(:phase, length(θ))
     sidx = sortperm(θ)
     vidx = invperm(sidx)
     xt = [1:size(Z,2);]
-    # rotate around the z-axes
-    R = [1.0f0 0.0f0 0.0f0
-         0.0f0 1.0f0 -0.01f0;
-         0.0f0 0.01f0 1.0f0]
 
     μ = mean(Z, dims=(2,3))
     # adjust the limits
@@ -71,7 +86,9 @@ function plot_network_trials!(ax, Z::Array{T,3}, θ::Vector{T};cidx::Observable{
     if size(Z,1) == 1
         points = [i>size(Z,2) ? Point2f(NaN) : Point2f(xt[i], Z[1,i,j]-μ[1]) for j in 1:size(Z,3) for i in 1:size(Z,2)+1]
     else
-        points = [i>size(Z,2) ? Point3f(NaN) : Point3f(xt[i], Z[1,i,j]-μ[1], Z[2,i,j]-μ[2]) for j in 1:size(Z,3) for i in 1:size(Z,2)+1]
+        points = lift(W) do _W
+            [i>size(Z,2) ? Point3f(NaN) : Point3f(xt[i], (_W*(Z[:,i,j] .-μ[:,1,1]))...) for j in 1:size(Z,3) for i in 1:size(Z,2)+1]
+        end
         zlims!(_min, _max)
     end
     colors = [_colors[vidx[j]] for j in 1:size(Z,3) for i in 1:size(Z,2)+1]
@@ -79,7 +96,9 @@ function plot_network_trials!(ax, Z::Array{T,3}, θ::Vector{T};cidx::Observable{
     if !isempty(trial_events)
         #indicate events
         ecolors = [:gray, :black, :red]
-        points = [Point3f(_event, Z[1,_event, j]-μ[1], Z[2, _event,j]-μ[2]) for _event in trial_events for j in 1:size(Z,3)] 
+        points = lift(W) do _W
+            [Point3f(_event, _W*(Z[:,_event, j] .- μ[:,1,1])...) for _event in trial_events for j in 1:size(Z,3)] 
+        end
         colors = [parse(Colorant, ec) for ec in ecolors for j in 1:size(Z,3)]
         scatter!(ax, points, color=colors)
     end
@@ -89,18 +108,20 @@ end
 
 function plot_3d_snapshot(Z::Array{T,3}, θ::Vector{T};t::Observable{Int64}=Observable(1),show_trajectories=false) where T <: Real
     d,nbins,ntrials = size(Z)
+    # random projection matrix
+    _W = diagm(fill(one(T), d))
+    W = Observable(_W[1:3,1:d])
     # manually assign colors so that we can use them for the trajectories as well
     acolors = resample_cmap(:phase, length(θ))
     sidx = sortperm(θ)
     vidx = invperm(sidx)
-    points = lift(t) do _t
-        Point3f.(eachcol(Z[:,_t, :]))
+    points = lift(t,W) do _t, _W
+        Point3f.(eachcol(_W*Z[:,_t, :]))
     end
-    traj = lift(t) do _t
-        [_t >= i >= 1 ? Point3f(Z[1:3, i, j]) : Point3f(NaN) for j in 1:size(Z,3) for i in (_t-5):_t+1]
+    traj = lift(t,W) do _t, _W
+        [_t >= i >= 1 ? Point3f(_W*Z[:, i, j]) : Point3f(NaN) for j in 1:size(Z,3) for i in (_t-5):_t+1]
     end
     traj_color = [acolors[vidx[j]] for j in 1:length(θ) for i in 1:7] 
-    @show length(traj_color) length(traj[])
 
     # if show trajectories, include fading trajectories of the last 5 points
     fig = Figure()
@@ -115,6 +136,9 @@ function plot_3d_snapshot(Z::Array{T,3}, θ::Vector{T};t::Observable{Int64}=Obse
                 t[] = max(0, t[]-1)
             elseif event.key == Keyboard.right
                 t[] = min(size(Z,2), t[]+1)
+            elseif event.key == Keyboard.r
+                q,r = qr(randn(d,d))
+                W[] = permutedims(q[:,1:3])
             end
         end
         autolimits!(ax)
