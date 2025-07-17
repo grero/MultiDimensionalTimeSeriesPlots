@@ -41,7 +41,7 @@ function rpca(X::Matrix{T}, θ::Vector{T2}...) where T <: Real where T2
     Z, w'*pca.proj'
 end
 
-function plot_network_trials(Z::Array{T,3}, θ::Vector{T};kwargs...) where T <: Real
+function plot_network_trials(Z::Array{T,3}, θ::Matrix{T};kwargs...) where T <: Real
     # slightly hackish
     d = size(Z,1)
     fig = Figure()
@@ -50,22 +50,31 @@ function plot_network_trials(Z::Array{T,3}, θ::Vector{T};kwargs...) where T <: 
     else
         ax = Axis3(fig[1,1], xgridvisible=true, ygridvisible=true, zgridvisible=true, viewmode=:stretch)
     end
+    cax = Colorbar(fig[1,2], limits=(minimum(θ), maximum(θ)), colormap=:phase)
+    cax.label = "θ1"
     _W = diagm(fill(one(T), d))
     W = Observable(_W[1:2,1:d])
+    k = Observable(1)
     on(events(fig).keyboardbutton) do event
         if event.action == Keyboard.press || event.action == Keyboard.repeat
             if event.key == Keyboard.r
                 q,r = qr(randn(d,d))
                 W[] = permutedims(q[:,1:2])
+            elseif event.key == Keyboard.c
+                k[] = mod(k[],size(θ,2))+1
+                cax.label = "θ$(k[])"
             end
+
         end
     end
-    plot_network_trials!(ax, Z, θ, W;kwargs...)
+    textlabel!(ax, 0.05, 0.05, text="c : rotate color axis\nr : change projection", space=:relative,
+              background_color=:black, alpha=0.2, text_align=(:left, :bottom))
+    plot_network_trials!(ax, Z, θ, W;k=k, kwargs...)
     ax.xlabel = "Time"
     fig
 end
 
-function plot_network_trials!(ax, Z::Array{T,3}, θ::Vector{T};kwargs...) where T <: Real
+function plot_network_trials!(ax, Z::Array{T,3}, θ;kwargs...) where T <: Real
     d = size(Z,1)
     # random projection
     _W = diagm(fill(one(T), d))
@@ -73,12 +82,11 @@ function plot_network_trials!(ax, Z::Array{T,3}, θ::Vector{T};kwargs...) where 
     plot_network_trials!(ax, Z, θ, W;kwargs...)
 end
 
-function plot_network_trials!(ax, Z::Array{T,3}, θ::Vector{T},W::Observable{Matrix{T}};trial_events::Vector{Int64}=Int64[]) where T <: Real
-    _colors = resample_cmap(:phase, length(θ))
-    sidx = sortperm(θ)
+function plot_network_trials!(ax, Z::Array{T,3}, θ::Matrix{T},W::Observable{Matrix{T}};k::Observable{Int64}=Observable(1), trial_events::Vector{Int64}=Int64[]) where T <: Real
+    _colors = resample_cmap(:phase, size(θ,1))
+    sidx = sortperm(θ[:,1])
     vidx = invperm(sidx)
     xt = [1:size(Z,2);]
-
     μ = mean(Z, dims=(2,3))
     # adjust the limits
     _min, _max = extrema((Z .- μ)[:])    
@@ -91,7 +99,11 @@ function plot_network_trials!(ax, Z::Array{T,3}, θ::Vector{T},W::Observable{Mat
         end
         zlims!(_min, _max)
     end
-    colors = [_colors[vidx[j]] for j in 1:size(Z,3) for i in 1:size(Z,2)+1]
+    colors = lift(k) do _k
+        sidx = sortperm(θ[:,_k])
+        vidx = invperm(sidx)
+        [_colors[vidx[j]] for j in 1:size(Z,3) for i in 1:size(Z,2)+1]
+    end
     l = lines!(ax, points, color=colors)
     if !isempty(trial_events)
         #indicate events
