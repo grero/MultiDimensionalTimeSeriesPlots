@@ -155,8 +155,8 @@ function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Obse
     if show_trajectories
         lines!(ax, traj, color=traj_color)
     end
-    textlabel!(ax, 0.1, 0.0, text="c : rotate color axis\nr : change projection", space=:relative,
-              background_color=:red, alpha=0.2)
+    textlabel!(ax, 0.05, 0.05, text="c : rotate color axis\nr : change projection\n p : rotate projection", space=:relative,
+              background_color=:black, alpha=0.2, text_align=(:left, :bottom))
     on(events(fig).keyboardbutton) do event
         if event.action == Keyboard.press || event.action == Keyboard.repeat
             if event.key == Keyboard.left
