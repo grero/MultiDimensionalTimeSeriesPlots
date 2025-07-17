@@ -120,6 +120,7 @@ end
 
 function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Observable(1),show_trajectories=false) where T <: Real
     d,nbins,ntrials = size(Z)
+    μ = mean(Z, dims=3)
     # random projection matrix
     _W = diagm(fill(one(T), d))
     W = Observable(_W[1:3,1:d])
@@ -137,10 +138,10 @@ function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Obse
     vidx = invperm(sidx)
     pcolors = Observable(acolors[vidx])
     points = lift(t,W) do _t, _W
-        Point3f.(eachcol(_W*Z[:,_t, :]))
+        Point3f.(eachcol(_W*(Z[:,_t, :] .- μ[:,_t,:])))
     end
     traj = lift(t,W) do _t, _W
-        [_t >= i >= 1 ? Point3f(_W*Z[:, i, j]) : Point3f(NaN) for j in 1:size(Z,3) for i in (_t-5):_t+1]
+        [_t >= i >= 1 ? Point3f(_W*(Z[:, i, j] - μ[:,_t])) : Point3f(NaN) for j in 1:size(Z,3) for i in (_t-5):_t+1]
     end
     traj_color = lift(pcolors) do _pc
          [_pc[j] for j in 1:size(θ,1) for i in 1:7] 
@@ -176,13 +177,23 @@ function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Obse
                 cax.label = "θ$k"
             end
         end
-        autolimits!(ax)
+        #autolimits!(ax)
     end
     sl = Slider(fig[2,1], range=range(1, stop=size(Z,2), step=1), startvalue=t[], update_while_dragging=true) 
     on(sl.value) do _v
         if t[] != _v
             t[] = _v
-            autolimits!(ax)
+            #autolimits!(ax)
+            # TODO: use limits 
+            _min,_max = extrema(Z[:,t[], :] .- μ[:,t[],:])
+            _mm = maximum(abs.([_min, _max]))
+            Δ = 2*_mm
+            _min = -_mm - 0.15*Δ
+            _max = _mm + 0.15*Δ
+            xlims!(ax, _min, _max)
+            ylims!(ax, _min, _max)
+            zlims!(ax, _min, _max)
+
         end
     end
 
