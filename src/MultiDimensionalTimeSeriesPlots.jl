@@ -107,18 +107,19 @@ function plot_network_trials!(ax, Z::Array{T,3}, θ::Matrix{T},W::Observable{Mat
     l = lines!(ax, points, color=colors)
     if !isempty(trial_events)
         #indicate events
-        ecolors = [:gray, :black, :red]
+        length(trial_events) <= 4 || error("No enough colors for trial_events")
+        ecolors = [:gray, :black, :red, :orange]
         points = lift(W) do _W
             [Point3f(_event, _W*(Z[:,_event, j] .- μ[:,1,1])...) for _event in trial_events for j in 1:size(Z,3)] 
         end
-        colors = [parse(Colorant, ec) for ec in ecolors for j in 1:size(Z,3)]
+        colors = [parse(Colorant, ecolors[i]) for i in 1:length(trial_events) for j in 1:size(Z,3)]
         scatter!(ax, points, color=colors)
     end
 
     ax,l
 end
 
-function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Observable(1),show_trajectories=false) where T <: Real
+function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Observable(1),show_trajectories=false, trial_events::Vector{Int64}=Int64[]) where T <: Real
     d,nbins,ntrials = size(Z)
     μ = mean(Z, dims=3)
     # random projection matrix
@@ -179,21 +180,35 @@ function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Obse
         end
         #autolimits!(ax)
     end
-    sl = Slider(fig[2,1], range=range(1, stop=size(Z,2), step=1), startvalue=t[], update_while_dragging=true) 
+    if ~isempty(trial_events)
+        axp = Axis(fig[2,1])
+        axp.xticklabelsvisible = false
+        axp.yticklabelsvisible = false
+        axp.xticksvisible = false
+        axp.yticksvisible = false
+        axp.xgridvisible = false
+        axp.ygridvisible = false
+        vlines!(axp, trial_events)
+        xlims!(axp, 1, size(Z,2))
+        sl = Slider(fig[3,1], range=range(1, stop=size(Z,2), step=1), startvalue=t[], update_while_dragging=true) 
+        rowsize!(fig.layout, 2, 25)
+    else
+        sl = Slider(fig[2,1], range=range(1, stop=size(Z,2), step=1), startvalue=t[], update_while_dragging=true) 
+    end
+    on(t) do _t
+        _min,_max = extrema(Z[:,t[], :] .- μ[:,t[],:])
+        _mm = maximum(abs.([_min, _max]))
+        Δ = 2*_mm
+        _min = -_mm - 0.15*Δ
+        _max = _mm + 0.15*Δ
+        xlims!(ax, _min, _max)
+        ylims!(ax, _min, _max)
+        zlims!(ax, _min, _max)
+    end
+
     on(sl.value) do _v
         if t[] != _v
             t[] = _v
-            #autolimits!(ax)
-            # TODO: use limits 
-            _min,_max = extrema(Z[:,t[], :] .- μ[:,t[],:])
-            _mm = maximum(abs.([_min, _max]))
-            Δ = 2*_mm
-            _min = -_mm - 0.15*Δ
-            _max = _mm + 0.15*Δ
-            xlims!(ax, _min, _max)
-            ylims!(ax, _min, _max)
-            zlims!(ax, _min, _max)
-
         end
     end
 
