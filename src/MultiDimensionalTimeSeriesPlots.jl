@@ -107,11 +107,12 @@ function plot_network_trials!(ax, Z::Array{T,3}, θ::Matrix{T},W::Observable{Mat
     l = lines!(ax, points, color=colors)
     if !isempty(trial_events)
         #indicate events
-        ecolors = [:gray, :black, :red]
+        length(trial_events) <= 4 || error("No enough colors for trial_events")
+        ecolors = [:gray, :black, :red, :orange]
         points = lift(W) do _W
             [Point3f(_event, _W*(Z[:,_event, j] .- μ[:,1,1])...) for _event in trial_events for j in 1:size(Z,3)] 
         end
-        colors = [parse(Colorant, ec) for ec in ecolors for j in 1:size(Z,3)]
+        colors = [parse(Colorant, ecolors[i]) for i in 1:length(trial_events) for j in 1:size(Z,3)]
         scatter!(ax, points, color=colors)
     end
 
