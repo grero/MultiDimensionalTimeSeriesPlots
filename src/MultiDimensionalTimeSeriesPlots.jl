@@ -119,7 +119,7 @@ function plot_network_trials!(ax, Z::Array{T,3}, θ::Matrix{T},W::Observable{Mat
     ax,l
 end
 
-function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Observable(1),show_trajectories=false, trial_events::Vector{Int64}=Int64[]) where T <: Real
+function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Observable(1),show_trajectories::Observable{Bool}=Observable(false), trial_events::Vector{Int64}=Int64[]) where T <: Real
     d,nbins,ntrials = size(Z)
     μ = mean(Z, dims=3)
     # random projection matrix
@@ -154,10 +154,12 @@ function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Obse
     cax = Colorbar(fig[1,2], limits=(minimum(θ), maximum(θ)), colormap=:phase)
     cax.label = "θ1" 
     scatter!(ax, points, color=pcolors)
-    if show_trajectories
-        lines!(ax, traj, color=traj_color)
+    ll = lines!(ax, traj, color=traj_color)
+    ll.visible = show_trajectories[]
+    on(show_trajectories) do _st
+        ll.visible = _st
     end
-    textlabel!(ax, 0.05, 0.05, text="c : rotate color axis\nr : change projection\n p : rotate projection", space=:relative,
+    textlabel!(ax, 0.05, 0.05, text="c : rotate color axis\nr : change projection\np : rotate projection\nt : toggle traces", space=:relative,
               background_color=:black, alpha=0.2, text_align=(:left, :bottom))
     on(events(fig).keyboardbutton) do event
         if event.action == Keyboard.press || event.action == Keyboard.repeat
@@ -176,6 +178,8 @@ function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Obse
                 vidx = invperm(sidx)
                 pcolors[] = acolors[vidx]
                 cax.label = "θ$k"
+            elseif event.key == Keyboard.t
+                show_trajectories[] = !show_trajectories[]
             end
         end
         #autolimits!(ax)
