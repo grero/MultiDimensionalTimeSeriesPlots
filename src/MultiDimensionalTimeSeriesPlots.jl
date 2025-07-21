@@ -120,6 +120,7 @@ function plot_network_trials!(ax, Z::Array{T,3}, θ::Matrix{T},W::Observable{Mat
 end
 
 function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Observable(1),show_trajectories::Observable{Bool}=Observable(false), trial_events::Vector{Int64}=Int64[]) where T <: Real
+    is_saving = Observable(false)
     d,nbins,ntrials = size(Z)
     ee = dropdims(mean(sum(abs2.(diff(Z,dims=2)), dims=1),dims=3),dims=(1,3))
     μ = mean(Z, dims=3)
@@ -160,7 +161,7 @@ function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Obse
     on(show_trajectories) do _st
         ll.visible = _st
     end
-    textlabel!(ax, 0.05, 0.05, text="c : rotate color axis\nr : change projection\np : rotate projection\nt : toggle traces", space=:relative,
+    tt = textlabel!(ax, 0.05, 0.05, text="c : rotate color axis\nr : change projection\np : rotate projection\nt : toggle traces", space=:relative,
               background_color=:black, alpha=0.2, text_align=(:left, :bottom))
     on(events(fig).keyboardbutton) do event
         if event.action == Keyboard.press || event.action == Keyboard.repeat
@@ -181,9 +182,14 @@ function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Obse
                 cax.label = "θ$k"
             elseif event.key == Keyboard.t
                 show_trajectories[] = !show_trajectories[]
+            elseif event.key == Keyboard.s
+                is_saving[] = true
             end
         end
         #autolimits!(ax)
+    end
+    on(is_saving) do _is_saving
+        tt.visible[] = !_is_saving
     end
     # show the average enery
     axe = Axis(fig[2,1])
