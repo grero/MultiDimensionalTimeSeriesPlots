@@ -119,7 +119,7 @@ function plot_network_trials!(ax, Z::Array{T,3}, θ::Matrix{T},W::Observable{Mat
     ax,l
 end
 
-function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Observable(1),show_trajectories::Observable{Bool}=Observable(false), trial_events::Vector{Int64}=Int64[]) where T <: Real
+function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Observable(1),show_trajectories::Observable{Bool}=Observable(false), trial_events::Vector{Int64}=Int64[], fname::String="snapshot.png") where T <: Real
     is_saving = Observable(false)
     d,nbins,ntrials = size(Z)
     ee = dropdims(mean(sum(abs2.(diff(Z,dims=2)), dims=1),dims=3),dims=(1,3))
@@ -183,7 +183,11 @@ function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Obse
             elseif event.key == Keyboard.t
                 show_trajectories[] = !show_trajectories[]
             elseif event.key == Keyboard.s
-                is_saving[] = !(is_saving[])
+                is_saving[] = true
+                bn,ex = splitext(fname)
+                _fname = replace(fname, ex => "_$(t[])$(ex)")
+                save(_fname, fig;px_per_unit=8)
+                is_saving[] = false
             end
         end
         #autolimits!(ax)
