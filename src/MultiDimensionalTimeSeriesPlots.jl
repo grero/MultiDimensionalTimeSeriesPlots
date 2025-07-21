@@ -183,13 +183,10 @@ function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Obse
             elseif event.key == Keyboard.t
                 show_trajectories[] = !show_trajectories[]
             elseif event.key == Keyboard.s
-                is_saving[] = true
+                is_saving[] = !(is_saving[])
             end
         end
         #autolimits!(ax)
-    end
-    on(is_saving) do _is_saving
-        tt.visible[] = !_is_saving
     end
     # show the average enery
     axe = Axis(fig[2,1])
@@ -206,22 +203,8 @@ function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Obse
     axe.topspinevisible = false
     axe.rightspinevisible = false
     rowsize!(fig.layout, 2, Relative(0.2))
-    if ~isempty(trial_events)
-        axp = Axis(fig[3,1])
-        axp.xticklabelsvisible = false
-        axp.yticklabelsvisible = false
-        axp.xticksvisible = false
-        axp.yticksvisible = false
-        axp.xgridvisible = false
-        axp.ygridvisible = false
-        vlines!(axp, trial_events)
-        xlims!(axp, 1, size(Z,2))
-        linkxaxes!(axe, axp)
-        sl = Slider(fig[4,1], range=range(1, stop=size(Z,2), step=1), startvalue=t[], update_while_dragging=true)
-        rowsize!(fig.layout, 3, 25)
-    else
-        sl = Slider(fig[3,1], range=range(1, stop=size(Z,2), step=1), startvalue=t[], update_while_dragging=true)
-    end
+    sl = Slider(fig[3,1], range=range(1, stop=size(Z,2), step=1), startvalue=t[], update_while_dragging=true)
+
     on(t) do _t
         _min,_max = extrema(Z[:,t[], :] .- μ[:,t[],:])
         _mm = maximum(abs.([_min, _max]))
@@ -231,6 +214,11 @@ function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Obse
         xlims!(ax, _min, _max)
         ylims!(ax, _min, _max)
         zlims!(ax, _min, _max)
+    end
+
+    on(is_saving) do _is_saving
+        tt.visible[] = !_is_saving
+        sl.blockscene.visible[] = !_is_saving
     end
 
     on(sl.value) do _v
