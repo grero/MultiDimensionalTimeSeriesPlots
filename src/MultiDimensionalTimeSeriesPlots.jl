@@ -89,7 +89,7 @@ function plot_network_trials!(ax, Z::Array{T,3}, θ::Matrix{T},W::Observable{Mat
     xt = [1:size(Z,2);]
     μ = mean(Z, dims=(2,3))
     # adjust the limits
-    _min, _max = extrema((Z .- μ)[:])    
+    _min, _max = extrema((Z .- μ)[:])
     ylims!(_min, _max)
     if size(Z,1) == 1
         points = [i>size(Z,2) ? Point2f(NaN) : Point2f(xt[i], Z[1,i,j]-μ[1]) for j in 1:size(Z,3) for i in 1:size(Z,2)+1]
@@ -110,7 +110,7 @@ function plot_network_trials!(ax, Z::Array{T,3}, θ::Matrix{T},W::Observable{Mat
         length(trial_events) <= 4 || error("No enough colors for trial_events")
         ecolors = [:gray, :black, :red, :orange]
         points = lift(W) do _W
-            [Point3f(_event, _W*(Z[:,_event, j] .- μ[:,1,1])...) for _event in trial_events for j in 1:size(Z,3)] 
+            [Point3f(_event, _W*(Z[:,_event, j] .- μ[:,1,1])...) for _event in trial_events for j in 1:size(Z,3)]
         end
         colors = [parse(Colorant, ecolors[i]) for i in 1:length(trial_events) for j in 1:size(Z,3)]
         scatter!(ax, points, color=colors)
@@ -119,8 +119,10 @@ function plot_network_trials!(ax, Z::Array{T,3}, θ::Matrix{T},W::Observable{Mat
     ax,l
 end
 
-function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Observable(1),show_trajectories::Observable{Bool}=Observable(false), trial_events::Vector{Int64}=Int64[]) where T <: Real
+function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Observable(1),show_trajectories::Observable{Bool}=Observable(false), trial_events::Vector{Int64}=Int64[], fname::String="snapshot.png") where T <: Real
+    is_saving = Observable(false)
     d,nbins,ntrials = size(Z)
+    ee = dropdims(mean(sum(abs2.(diff(Z,dims=2)), dims=1),dims=3),dims=(1,3))
     μ = mean(Z, dims=3)
     # random projection matrix
     _W = diagm(fill(one(T), d))
@@ -145,21 +147,21 @@ function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Obse
         [_t >= i >= 1 ? Point3f(_W*(Z[:, i, j] - μ[:,_t])) : Point3f(NaN) for j in 1:size(Z,3) for i in (_t-5):_t+1]
     end
     traj_color = lift(pcolors) do _pc
-         [_pc[j] for j in 1:size(θ,1) for i in 1:7] 
+         [_pc[j] for j in 1:size(θ,1) for i in 1:7]
     end
 
     # if show trajectories, include fading trajectories of the last 5 points
     fig = Figure()
     ax = Axis3(fig[1,1])
     cax = Colorbar(fig[1,2], limits=(minimum(θ), maximum(θ)), colormap=:phase)
-    cax.label = "θ1" 
+    cax.label = "θ1"
     scatter!(ax, points, color=pcolors)
     ll = lines!(ax, traj, color=traj_color)
     ll.visible = show_trajectories[]
     on(show_trajectories) do _st
         ll.visible = _st
     end
-    textlabel!(ax, 0.05, 0.05, text="c : rotate color axis\nr : change projection\np : rotate projection\nt : toggle traces", space=:relative,
+    tt = textlabel!(ax, 0.05, 0.05, text="c : rotate color axis\nr : change projection\np : rotate projection\nt : toggle traces", space=:relative,
               background_color=:black, alpha=0.2, text_align=(:left, :bottom))
     on(events(fig).keyboardbutton) do event
         if event.action == Keyboard.press || event.action == Keyboard.repeat
@@ -180,25 +182,33 @@ function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Obse
                 cax.label = "θ$k"
             elseif event.key == Keyboard.t
                 show_trajectories[] = !show_trajectories[]
+            elseif event.key == Keyboard.s
+                is_saving[] = true
+                bn,ex = splitext(fname)
+                _fname = replace(fname, ex => "_$(t[])$(ex)")
+                save(_fname, fig;px_per_unit=8)
+                is_saving[] = false
             end
         end
         #autolimits!(ax)
     end
-    if ~isempty(trial_events)
-        axp = Axis(fig[2,1])
-        axp.xticklabelsvisible = false
-        axp.yticklabelsvisible = false
-        axp.xticksvisible = false
-        axp.yticksvisible = false
-        axp.xgridvisible = false
-        axp.ygridvisible = false
-        vlines!(axp, trial_events)
-        xlims!(axp, 1, size(Z,2))
-        sl = Slider(fig[3,1], range=range(1, stop=size(Z,2), step=1), startvalue=t[], update_while_dragging=true) 
-        rowsize!(fig.layout, 2, 25)
-    else
-        sl = Slider(fig[2,1], range=range(1, stop=size(Z,2), step=1), startvalue=t[], update_while_dragging=true) 
+    # show the average enery
+    axe = Axis(fig[2,1])
+    lines!(axe, 2:length(ee)+1, ee, color=:black)
+    if !isempty(trial_events)
+        vlines!(axe, trial_events, color=Cycled(1))
     end
+    vlines!(axe, t, color=:black, linestyle=:dot)
+
+    axe.ylabel = "Avg speed"
+    axe.xticklabelsvisible = false
+    axe.xgridvisible = false
+    axe.ygridvisible = false
+    axe.topspinevisible = false
+    axe.rightspinevisible = false
+    rowsize!(fig.layout, 2, Relative(0.2))
+    sl = Slider(fig[3,1], range=range(1, stop=size(Z,2), step=1), startvalue=t[], update_while_dragging=true)
+
     on(t) do _t
         _min,_max = extrema(Z[:,t[], :] .- μ[:,t[],:])
         _mm = maximum(abs.([_min, _max]))
@@ -208,6 +218,11 @@ function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Obse
         xlims!(ax, _min, _max)
         ylims!(ax, _min, _max)
         zlims!(ax, _min, _max)
+    end
+
+    on(is_saving) do _is_saving
+        tt.visible[] = !_is_saving
+        sl.blockscene.visible[] = !_is_saving
     end
 
     on(sl.value) do _v
