@@ -14,7 +14,7 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 [compat]
 Colors = "0.13.1"
 LinearAlgebra = "1.11.0"
-LinearRegressionUtils = "0.5.0 - 0.6.0"
+LinearRegressionUtils = "0.6.0"
 Makie = "0.22.3 - 0.24.3"
 MultivariateStats = "0.6.0 - 0.10.3"
 StatsBase = "0.24.0 - 0.34.5"
