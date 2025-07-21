@@ -121,6 +121,7 @@ end
 
 function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Observable(1),show_trajectories::Observable{Bool}=Observable(false), trial_events::Vector{Int64}=Int64[]) where T <: Real
     d,nbins,ntrials = size(Z)
+    ee = dropdims(mean(sum(abs2.(diff(Z,dims=2)), dims=1),dims=3),dims=(1,3))
     μ = mean(Z, dims=3)
     # random projection matrix
     _W = diagm(fill(one(T), d))
@@ -184,8 +185,23 @@ function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Obse
         end
         #autolimits!(ax)
     end
+    # show the average enery
+    axe = Axis(fig[2,1])
+    lines!(axe, 2:length(ee)+1, ee, color=:black)
+    if !isempty(trial_events)
+        vlines!(axe, trial_events, color=Cycled(1))
+    end
+    vlines!(axe, t, color=:black, linestyle=:dot)
+
+    axe.ylabel = "Avg speed"
+    axe.xticklabelsvisible = false
+    axe.xgridvisible = false
+    axe.ygridvisible = false
+    axe.topspinevisible = false
+    axe.rightspinevisible = false
+    rowsize!(fig.layout, 2, Relative(0.2))
     if ~isempty(trial_events)
-        axp = Axis(fig[2,1])
+        axp = Axis(fig[3,1])
         axp.xticklabelsvisible = false
         axp.yticklabelsvisible = false
         axp.xticksvisible = false
@@ -194,10 +210,11 @@ function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Obse
         axp.ygridvisible = false
         vlines!(axp, trial_events)
         xlims!(axp, 1, size(Z,2))
-        sl = Slider(fig[3,1], range=range(1, stop=size(Z,2), step=1), startvalue=t[], update_while_dragging=true) 
-        rowsize!(fig.layout, 2, 25)
+        linkxaxes!(axe, axp)
+        sl = Slider(fig[4,1], range=range(1, stop=size(Z,2), step=1), startvalue=t[], update_while_dragging=true)
+        rowsize!(fig.layout, 3, 25)
     else
-        sl = Slider(fig[2,1], range=range(1, stop=size(Z,2), step=1), startvalue=t[], update_while_dragging=true) 
+        sl = Slider(fig[3,1], range=range(1, stop=size(Z,2), step=1), startvalue=t[], update_while_dragging=true)
     end
     on(t) do _t
         _min,_max = extrema(Z[:,t[], :] .- μ[:,t[],:])
