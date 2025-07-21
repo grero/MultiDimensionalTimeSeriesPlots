@@ -89,7 +89,7 @@ function plot_network_trials!(ax, Z::Array{T,3}, θ::Matrix{T},W::Observable{Mat
     xt = [1:size(Z,2);]
     μ = mean(Z, dims=(2,3))
     # adjust the limits
-    _min, _max = extrema((Z .- μ)[:])    
+    _min, _max = extrema((Z .- μ)[:])
     ylims!(_min, _max)
     if size(Z,1) == 1
         points = [i>size(Z,2) ? Point2f(NaN) : Point2f(xt[i], Z[1,i,j]-μ[1]) for j in 1:size(Z,3) for i in 1:size(Z,2)+1]
@@ -110,7 +110,7 @@ function plot_network_trials!(ax, Z::Array{T,3}, θ::Matrix{T},W::Observable{Mat
         length(trial_events) <= 4 || error("No enough colors for trial_events")
         ecolors = [:gray, :black, :red, :orange]
         points = lift(W) do _W
-            [Point3f(_event, _W*(Z[:,_event, j] .- μ[:,1,1])...) for _event in trial_events for j in 1:size(Z,3)] 
+            [Point3f(_event, _W*(Z[:,_event, j] .- μ[:,1,1])...) for _event in trial_events for j in 1:size(Z,3)]
         end
         colors = [parse(Colorant, ecolors[i]) for i in 1:length(trial_events) for j in 1:size(Z,3)]
         scatter!(ax, points, color=colors)
@@ -146,14 +146,14 @@ function plot_3d_snapshot(Z::Array{T,3}, θ::Matrix{T};t::Observable{Int64}=Obse
         [_t >= i >= 1 ? Point3f(_W*(Z[:, i, j] - μ[:,_t])) : Point3f(NaN) for j in 1:size(Z,3) for i in (_t-5):_t+1]
     end
     traj_color = lift(pcolors) do _pc
-         [_pc[j] for j in 1:size(θ,1) for i in 1:7] 
+         [_pc[j] for j in 1:size(θ,1) for i in 1:7]
     end
 
     # if show trajectories, include fading trajectories of the last 5 points
     fig = Figure()
     ax = Axis3(fig[1,1])
     cax = Colorbar(fig[1,2], limits=(minimum(θ), maximum(θ)), colormap=:phase)
-    cax.label = "θ1" 
+    cax.label = "θ1"
     scatter!(ax, points, color=pcolors)
     ll = lines!(ax, traj, color=traj_color)
     ll.visible = show_trajectories[]
