@@ -14,7 +14,7 @@ Base.sin(a::Angle{T}) where T <: Real = sin(a.a)
 Base.cos(a::Angle{T}) where T <: Real = cos(a.a)
 Base.tan(a::Angle{T}) where T <: Real = tan(a.a)
 
-function regress(X::Matrix{T}, θ::Vector{T2};kwargs...) where T2 <: Angle{T} where T <: Real
+function regress(X::Matrix{T}, θ::AbstractVector{T2};kwargs...) where T2 <: Angle{T} where T <: Real
     d,n = size(X)
     cy = cos.(θ)
     sy = sin.(θ)
@@ -22,13 +22,13 @@ function regress(X::Matrix{T}, θ::Vector{T2};kwargs...) where T2 <: Angle{T} wh
     ls = LinearRegressionUtils.llsq_stats(permutedims(X), y;kwargs...)
 end
 
-function regress(X::Matrix{T}, θ1::Vector{T2}, θ2::Vector{T2};kwargs...) where T2 <: Angle{T} where T <: Real
+function regress(X::Matrix{T}, θ1::AbstractVector{T2}, θ2::AbstractVector{T2};kwargs...) where T2 <: Angle{T} where T <: Real
     d,n = size(X)
     y = [cos.(θ1) sin.(θ1) cos.(θ2) sin.(θ2)]
     ls = LinearRegressionUtils.llsq_stats(permutedims(X),y;kwargs...)
 end
 
-function rpca(X::Matrix{T}, θ::Vector{T2}...) where T <: Real where T2
+function rpca(X::Matrix{T}, θ::AbstractVector{T2}...) where T <: Real where T2
     pca = fit(PCA, X)
     Xp = predict(pca, X)
     ls = regress(Xp, θ...)
