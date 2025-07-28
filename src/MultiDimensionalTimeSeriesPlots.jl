@@ -14,7 +14,7 @@ Base.sin(a::Angle{T}) where T <: Real = sin(a.a)
 Base.cos(a::Angle{T}) where T <: Real = cos(a.a)
 Base.tan(a::Angle{T}) where T <: Real = tan(a.a)
 
-function regress(X::Matrix{T}, θ::Vector{T2};kwargs...) where T2 <: Angle{T} where T <: Real
+function regress(X::Matrix{T}, θ::AbstractVector{T2};kwargs...) where T2 <: Angle{T} where T <: Real
     d,n = size(X)
     cy = cos.(θ)
     sy = sin.(θ)
@@ -22,13 +22,13 @@ function regress(X::Matrix{T}, θ::Vector{T2};kwargs...) where T2 <: Angle{T} wh
     ls = LinearRegressionUtils.llsq_stats(permutedims(X), y;kwargs...)
 end
 
-function regress(X::Matrix{T}, θ1::Vector{T2}, θ2::Vector{T2};kwargs...) where T2 <: Angle{T} where T <: Real
+function regress(X::Matrix{T}, θ1::AbstractVector{T2}, θ2::AbstractVector{T2};kwargs...) where T2 <: Angle{T} where T <: Real
     d,n = size(X)
     y = [cos.(θ1) sin.(θ1) cos.(θ2) sin.(θ2)]
     ls = LinearRegressionUtils.llsq_stats(permutedims(X),y;kwargs...)
 end
 
-function rpca(X::Matrix{T}, θ::Vector{T2}...) where T <: Real where T2
+function rpca(X::Matrix{T}, θ::AbstractVector{T2}...) where T <: Real where T2
     pca = fit(PCA, X)
     Xp = predict(pca, X)
     ls = regress(Xp, θ...)
@@ -41,7 +41,7 @@ function rpca(X::Matrix{T}, θ::Vector{T2}...) where T <: Real where T2
     Z, w'*pca.proj'
 end
 
-function plot_network_trials(Z::Array{T,3}, θ::Matrix{T};kwargs...) where T <: Real
+function plot_network_trials(Z::Array{T,3}, θ::Matrix{T};fname::String="network_trials.png", is_saving::Observable{Bool}=Observable(false), kwargs...) where T <: Real
     # slightly hackish
     d = size(Z,1)
     fig = Figure()
@@ -50,6 +50,7 @@ function plot_network_trials(Z::Array{T,3}, θ::Matrix{T};kwargs...) where T <: 
     else
         ax = Axis3(fig[1,1], xgridvisible=true, ygridvisible=true, zgridvisible=true, viewmode=:stretch)
     end
+    ee = dropdims(mean(sum(abs2.(diff(Z,dims=2)), dims=1),dims=3),dims=(1,3))
     cax = Colorbar(fig[1,2], limits=(minimum(θ), maximum(θ)), colormap=:phase)
     cax.label = "θ1"
     _W = diagm(fill(one(T), d))
@@ -63,14 +64,35 @@ function plot_network_trials(Z::Array{T,3}, θ::Matrix{T};kwargs...) where T <: 
             elseif event.key == Keyboard.c
                 k[] = mod(k[],size(θ,2))+1
                 cax.label = "θ$(k[])"
+            elseif event.key == Keyboard.s
+                is_saving[] = true
+                save(fname, fig;px_per_unit=8)
+                is_saving[] = false
             end
 
         end
     end
-    textlabel!(ax, 0.05, 0.05, text="c : rotate color axis\nr : change projection", space=:relative,
+    tl = textlabel!(ax, 0.05, 0.05, text="c : rotate color axis\nr : change projection\ns : save", space=:relative,
               background_color=:black, alpha=0.2, text_align=(:left, :bottom))
-    plot_network_trials!(ax, Z, θ, W;k=k, kwargs...)
+    on(is_saving) do _is_saving
+        tl.visible[] = !_is_saving
+    end
+    plot_network_trials!(ax, Z, θ, W;is_saving=is_saving, k=k, kwargs...)
     ax.xlabel = "Time"
+    # axis for showing the average speed
+    ax2 = Axis(fig[2,1])
+    lines!(ax2, 2:(length(ee)+1), ee, color=:black)
+    if :trial_events in keys(kwargs)
+        ecolors = [:gray, :black, :red, :orange]
+        vlines!(ax2, kwargs[:trial_events], color=ecolors, linestyle=:dot)
+    end
+    ax2.topspinevisible = false
+    ax2.rightspinevisible = false
+    ax2.xgridvisible = false
+    ax2.ygridvisible = false
+    ax2.ylabel = "Avg speed"
+    ax2.xlabel = "Time"
+    rowsize!(fig.layout, 1, Relative(0.8))
     fig
 end
 
@@ -82,7 +104,7 @@ function plot_network_trials!(ax, Z::Array{T,3}, θ;kwargs...) where T <: Real
     plot_network_trials!(ax, Z, θ, W;kwargs...)
 end
 
-function plot_network_trials!(ax, Z::Array{T,3}, θ::Matrix{T},W::Observable{Matrix{T}};k::Observable{Int64}=Observable(1), trial_events::Vector{Int64}=Int64[]) where T <: Real
+function plot_network_trials!(ax, Z::Array{T,3}, θ::Matrix{T},W::Observable{Matrix{T}};k::Observable{Int64}=Observable(1), trial_events::Vector{Int64}=Int64[], is_saving::Observable{Bool}=Observable(false)) where T <: Real
     _colors = resample_cmap(:phase, size(θ,1))
     sidx = sortperm(θ[:,1])
     vidx = invperm(sidx)
