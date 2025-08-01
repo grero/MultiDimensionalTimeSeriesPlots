@@ -51,6 +51,19 @@ function rpca(X::Matrix{T}, θ::AbstractVector{T2}...) where T <: Real where T2
     Z, w'*pca.proj'
 end
 
+function mpca(X::Matrix{T}, θ::AbstractVector{T2}) where T <: Real where T2
+    # find the unique values
+    uθ = unique(θ)
+    sort!(uθ)
+    y = zeros(T, size(X,1), length(uθ))
+    for (i,_θ) in enumerate(uθ)
+        y[:,i] = dropdims(mean(X[:,θ.==_θ],dims=2),dims=2)
+    end
+    pca = fit(PCA, y)
+    Z = predict(pca, y)
+    Z, pca
+end
+
 function plot_network_trials(Z::Array{T,3}, θ::Matrix{T};fname::String="network_trials.png", is_saving::Observable{Bool}=Observable(false), kwargs...) where T <: Real
     # slightly hackish
     d = size(Z,1)
