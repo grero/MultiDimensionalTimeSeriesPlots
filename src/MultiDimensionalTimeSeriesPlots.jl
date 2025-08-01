@@ -33,8 +33,18 @@ function rpca(X::Matrix{T}, θ::AbstractVector{T2}...) where T <: Real where T2
     Xp = predict(pca, X)
     ls = regress(Xp, θ...)
     # construct an orthognal basis for β
-    q,r = qr(ls.β[1:end-1,:])
-    w = q[:,1:size(ls.β,2)]
+    w = zeros(T, size(ls.β,1)-1, size(ls.β,2))
+    if length(θ) == 1
+        q,r = qr(ls.β[1:end-1,:])
+        w .= q[:,1:size(ls.β,2)]
+    else
+        # orthogonalize for each vector
+        for i in 1:length(θ)
+            jj = ((i-1)*2+1):i*2
+            q,r = qr(ls.β[1:end-1,jj])
+            w[:,jj] = q[:,jj]
+        end
+    end
 
     # project onto the basis
     Z = w'*Xp
